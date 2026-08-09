@@ -1,0 +1,43 @@
+# The same gates CI runs, on the files you are actually committing.
+# `make check` remains the full-tree version.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.12
+    hooks:
+      - id: ruff-format
+      - id: ruff
+        args: ["--fix"]
+
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.10.0
+    hooks:
+      - id: shellcheck
+
+  # mypy and pytest run locally rather than in a pre-commit venv: both need the
+  # project's own dependencies, and the coverage gate is meaningless on a
+  # subset of files.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy --strict
+        entry: mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: pytest
+        name: pytest with the 100% coverage gate
+        entry: python -m pytest
+        language: system
+        types: [python]
+        pass_filenames: false

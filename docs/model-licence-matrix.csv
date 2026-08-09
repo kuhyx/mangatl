@@ -1,0 +1,40 @@
+component,option,repo_or_model,license,foss_clean,approx_size,vram_gb_3090,chosen,why
+detection,YOLOv8m-seg speech bubble,kitsumed/yolov8m_seg-speech-bubble,GPL-3.0,yes,~165 MB,0.5,DEFAULT,returns masks not just boxes so the typesetter can fit to the real balloon outline
+detection,comic-text-detector,dmMaze/comic-text-detector,GPL-3.0,yes,~60 MB,0.4,alternative,trained on ~13k anime/comic images; boxes + lines + masks in one model; used by BallonsTranslator and koharu
+detection,RT-DETR-v2 comic detector,ogkalu2/comic-translate,Apache-2.0,yes,~90 MB,0.6,alternative,trained on 11k mixed manga/webtoon/western; cleaner boxes on non-manga comics
+detection,DBNet / CRAFT,generic scene text,Apache-2.0 / MIT,yes,~50 MB,0.3,rejected,not manga-tuned; over-segments vertical text and fails on screentone and SFX
+ocr,manga-ocr,kha-white/manga-ocr-base,Apache-2.0,yes,444 MB,0.4,DEFAULT,purpose-built: vertical text furigana text-over-art decorative fonts multi-line in one forward pass
+ocr,PaddleOCR-VL manga finetune,jzhang533/PaddleOCR-VL-For-Manga,Apache-2.0,yes,~2 GB,3.0,alternative,~70% full-sentence accuracy on Manga109-s crops vs 27% for base; far more VRAM than manga-ocr for similar output
+ocr,PaddleOCR v4/v5 Japanese,PaddlePaddle/PaddleOCR,Apache-2.0,yes,~15 MB,0.3,rejected,strong on horizontal document Japanese; weak on vertical balloon text
+ocr,Qwen2.5-VL / InternVL3 / GOT-OCR2,various,Apache-2.0 / MIT,yes,3-8 GB,6-16,rejected,excellent general OCR but overkill per bubble; use only if you want layout reasoning in the same model
+ocr,PaddleOCR Korean (manhwa),PaddlePaddle/PaddleOCR,Apache-2.0,yes,~15 MB,0.3,future,no manhwa equivalent of manga-ocr exists; VLM is the pragmatic path
+translation,Qwen3-14B-Instruct Q5_K_M,Qwen/Qwen3-14B-GGUF,Apache-2.0,yes,~10 GB,10,DEFAULT,best self-hosted quality with whole-page context; leaves room for the rest of the stack on 24 GB
+translation,Gemma 3 12B/27B,google/gemma-3,Gemma Terms,no,8-18 GB,9-20,alternative,strong but custom licence with use restrictions; not OSI-approved
+translation,Frontier LLM (GPT/Claude/Gemini),cloud API,proprietary,no,n/a,0,rejected,best quality but not local; violates the stated requirement
+translation,SakuraLLM / Sakura-GalTransl-7B,SakuraLLM,CC-BY-NC-SA-4.0,no,~6 GB,6,rejected,ACGN-tuned but targets Japanese to CHINESE not English; also non-commercial
+translation,Sugoi v4 ja-en (CTranslate2),entai2965/sugoi-v4-ja-en-ctranslate2,varies,partial,~1.1 GB,1.5,fallback,the fan-scene classic; fast offline; no cross-line context so weak on pronouns and honorifics
+translation,NLLB-200,facebook/nllb-200,CC-BY-NC-4.0,no,2-5 GB,4,rejected,explicitly non-commercial and not for production
+translation,madlad400-3b-mt,google/madlad400-3b-mt,Apache-2.0,yes,~3 GB,4,alternative,commercially safe NMT baseline; mediocre on colloquial manga dialogue
+translation,Helsinki OPUS-MT ja-en,Helsinki-NLP/opus-mt-ja-en,Apache-2.0,yes,~300 MB,0.5,alternative,tiny and safe; general-web quality
+translation,LibreTranslate / Argos,LibreTranslate/LibreTranslate,AGPL-3.0,yes,~200 MB,0.3,fallback only,general-web NMT and line-by-line; documented as far slower and lower quality than peer CPU engines; GPU gives little benefit
+inpainting,AOT-GAN,mayocream/aot-inpainting,MIT,yes,~120 MB,1.0,DEFAULT,MIT-clean unlike several big-lama mirrors; fast; good enough for text removal
+inpainting,LaMa (anime finetune),via IOPaint / lama-cleaner,Apache-2.0 code / weights vary,check,~200 MB,2.0,alternative,best quality; several widely-mirrored big-lama weight sets carry CC-BY-NC-SA so verify the checkpoint you pull
+inpainting,MI-GAN,via IOPaint,MIT,yes,~30 MB,0.5,alternative,order of magnitude smaller and faster at low FID; good low-VRAM path
+inpainting,MangaInpainting,msxie92/MangaInpainting,research,check,~150 MB,2.0,alternative,tuned for line art and screentone specifically
+inpainting,Stable Diffusion inpaint,various,CreativeML / Apache,partial,2-7 GB,8,rejected,slow and VRAM-heavy; reconstruction objective can regenerate text-like texture instead of removing it
+inpainting,deterministic border fill,built into mangatl,AGPL-3.0,yes,0,0,shipped default,visually perfect inside a white balloon and never hallucinates artwork; zero download
+typesetting,Pillow,python-pillow/Pillow,MIT-CMU,yes,n/a,0,DEFAULT,sufficient for auto-fit plus stroke; no shaping engine needed for English
+typesetting,HarfBuzz + libraqm,uharfbuzz,MIT,yes,n/a,0,future,needed for correct vertical CJK layout and proper shaping
+typesetting,skia-python,kyamagu/skia-python,BSD-3-Clause,yes,n/a,0,future,best line-breaking and per-line kerning if typesetting quality becomes the bottleneck
+font,Comic Neue,google/fonts,OFL-1.1,yes,~200 KB,0,DEFAULT,redistributable body dialogue face
+font,Bangers,google/fonts,Apache-2.0,yes,~60 KB,0,bundled,shouts and impact lettering
+font,Patrick Hand,google/fonts,OFL-1.1,yes,~70 KB,0,bundled,handwriting and margin notes
+font,Noto Sans JP Bold,notofonts/noto-cjk,OFL-1.1,yes,~5 MB,0,bundled,Japanese fallback for bilingual proofs
+font,Wild Words,Comicraft,commercial,NO,n/a,0,EXCLUDED,the face scanlate.io uses; not redistributable at any price tier we can bundle
+font,Anime Ace / Blambot family,Blambot,free personal/indie non-commercial only,NO,n/a,0,EXCLUDED,trademarked; commercial licence sold separately; cannot be bundled
+font,Komika,freeware,varies per weight,NO,n/a,0,EXCLUDED,terms vary; treat as user-supplied
+dataset,Manga109,manga109.github.io,academic non-commercial by application,no,~20 GB,0,eval only,requires university email; must not be shared with third parties
+dataset,Manga109-s,hal-utokyo/Manga109-s,commercial R&D permitted subset,partial,~15 GB,0,eval only,87 volumes; v2026 released 2026-05-21 with revised annotations
+dataset,OpenMantra,mantra-inc/open-mantra-dataset,research use,no,~100 MB,0,eval,5 titles 214 pages 1593 sentences JA to EN and ZH with reading order; the reference manga MT eval set
+runtime,llama.cpp server,ggml-org/llama.cpp,MIT,yes,n/a,n/a,DEFAULT,OpenAI-compatible endpoint; simplest CUDA path on Arch
+runtime,vLLM,vllm-project/vllm,Apache-2.0,yes,n/a,n/a,alternative,higher throughput at batch size > 1; unnecessary for one user and one GPU

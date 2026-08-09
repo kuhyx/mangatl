@@ -1,0 +1,47 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Deliberately does NOT install the [ml] extra. Every adapter imports
+      # torch/ultralytics/manga_ocr lazily, so the full suite must pass with
+      # zero ML dependencies present. If that ever stops being true, this job
+      # is what tells you.
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          # DejaVu is an OS font package, not a PyPI one; the typesetter needs
+          # some real TTF on the box for its font-loading path.
+          sudo apt-get install -y fonts-dejavu-core
+
+      - name: Format
+        run: ruff format --check .
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Types
+        run: mypy
+
+      - name: Test with the 100% coverage gate
+        run: python -m pytest
+
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shellcheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck scripts/*.sh

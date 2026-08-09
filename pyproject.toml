@@ -1,0 +1,183 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mangatl"
+version = "0.1.0"
+description = "Fully local, FOSS Japanese->English manga translation pipeline with a web UI."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "kuhyx" }]
+# Upper bounds are deliberate. `filterwarnings = ["error"]` below turns any new
+# DeprecationWarning from a transitive dep into a suite-wide collection failure,
+# so an unbounded `>=` is a scheduled outage on someone else's release date.
+# (Observed: starlette 1.6 deprecates httpx for httpx2 and breaks TestClient.)
+# Raise these deliberately, the same way `[dev]` pins ruff and mypy.
+dependencies = [
+  "fastapi>=0.115,<1.0",
+  "pydantic>=2.9,<3.0",
+  "pydantic-settings>=2.6,<3.0",
+  "jinja2>=3.1,<4.0",
+  "python-multipart>=0.0.12,<1.0",
+  "httpx>=0.27,<1.0",
+  "pillow>=10.4,<12.0",
+  "starlette<1.0",
+  "uvicorn[standard]>=0.32,<1.0",
+]
+
+[project.optional-dependencies]
+# Heavy ML extras. Deliberately NOT required to run the tests: every adapter
+# imports these lazily inside the call site, so the test suite fakes them.
+ml = [
+  "torch>=2.4",
+  "manga-ocr>=0.1.14",
+  "ultralytics>=8.3",
+  "opencv-python-headless>=4.10",
+  "numpy>=1.26",
+]
+dev = [
+  "ruff==0.12.12",
+  "mypy==1.14.1",
+  "pytest>=8.3",
+  "pytest-cov>=5.0",
+  "pytest-asyncio>=0.24",
+]
+
+[project.scripts]
+mangatl = "mangatl.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mangatl"]
+
+# --------------------------------------------------------------------------
+# Ruff: every rule family on, then a short, individually justified opt-out list.
+# --------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "D203",   # conflicts with D211 (ruff explicitly recommends picking one)
+  "D213",   # conflicts with D212 (ditto)
+  "COM812", # conflicts with the formatter's trailing-comma handling
+  "ISC001", # conflicts with the formatter's implicit-concat handling
+  "CPY001", # no per-file copyright headers; LICENSE covers the tree
+]
+# No blanket per-file relaxations beyond the two below, both of which are
+# structural rather than a way to dodge a real finding.
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+  "S101",    # asserts are the entire point of a test file
+  "PLR2004", # magic numbers are the expected values under test
+  "SLF001",  # tests legitimately reach into private helpers
+]
+"src/mangatl/adapters/*" = [
+  "PLC0415", # lazy imports are the deliberate design: no heavy dep at import time
+]
+"src/mangatl/cli.py" = [
+  "PLC0415", # uvicorn is imported only in `serve`, so `batch` never pays for it
+]
+"src/mangatl/web/app.py" = [
+  "PLC0415", # Pillow is imported only when an upload actually needs decoding
+]
+"scripts/fetch_models.py" = [
+  "PLC0415", # huggingface_hub is installed *by* the installer that calls this
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = ["mangatl"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.pylint]
+max-args = 8
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# --------------------------------------------------------------------------
+# Mypy: strict, plus every extra-strictness flag strict does not imply.
+# --------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+packages = ["mangatl"]
+strict = true
+warn_unreachable = true
+warn_no_return = true
+strict_equality = true
+extra_checks = true
+disallow_any_explicit = false
+disallow_any_generics = true
+disallow_untyped_decorators = true
+no_implicit_reexport = true
+enable_error_code = [
+  "redundant-expr",
+  "possibly-undefined",
+  "truthy-bool",
+  "truthy-iterable",
+  "ignore-without-code",
+  "unused-awaitable",
+  "explicit-override",
+  "mutable-override",
+]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = true
+
+# The ML extras ship no stubs and are not installed in CI by design: every
+# adapter imports them lazily so the suite runs without a GPU. This is the
+# narrowest possible waiver -- three named modules, import errors only.
+[[tool.mypy.overrides]]
+module = ["ultralytics.*", "manga_ocr.*", "torch.*", "huggingface_hub.*"]
+ignore_missing_imports = true
+
+# --------------------------------------------------------------------------
+# Pytest + coverage: 100% of lines AND branches, enforced, no exceptions.
+# --------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+# `scripts/` is not a package; put it on the path so the shipped helper scripts
+# are importable by their tests and counted by coverage like everything else.
+pythonpath = ["scripts"]
+asyncio_mode = "auto"
+addopts = [
+  "-q",
+  "--strict-markers",
+  "--strict-config",
+  "--cov=mangatl",
+  "--cov=scripts",
+  "--cov-report=term-missing:skip-covered",
+  "--cov-report=xml",
+  "--cov-branch",
+  "--cov-fail-under=100",
+]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+branch = true
+# `scripts/` is held to the same bar as the package: they are shipped code that
+# the installer and the benchmark harness actually run.
+source = ["src/mangatl", "scripts"]
+parallel = false
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 100
+# Only two structural blocks are excluded, neither of which is reachable code
+# under test: TYPE_CHECKING never executes at runtime, and a `__main__` guard
+# is false by definition when a module is imported. No `pragma: no cover`
+# escape hatch is configured anywhere in this project.
+exclude_lines = ["if TYPE_CHECKING:", 'if __name__ == "__main__":']
