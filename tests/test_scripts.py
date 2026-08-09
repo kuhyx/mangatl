@@ -138,6 +138,26 @@ class TestFetchDetector:
         assert hub.calls == []
 
 
+class TestFetchInpainter:
+    """The AOT-GAN inpainting weights."""
+
+    def test_downloads_and_places_the_file(self, hub: FakeHub, tmp_path: Path) -> None:
+        """The checkpoint lands under the name the config expects."""
+        models = tmp_path / "models"
+        models.mkdir()
+        fetch_models.fetch_inpainter(models)
+        assert (models / "aot-inpainting.safetensors").read_bytes() == b"weights"
+        assert hub.calls == [("download", "mayocream/aot-inpainting", "model.safetensors")]
+
+    def test_is_idempotent(self, hub: FakeHub, tmp_path: Path) -> None:
+        """Existing weights are not re-downloaded."""
+        models = tmp_path / "models"
+        models.mkdir()
+        (models / "aot-inpainting.safetensors").write_bytes(b"already here")
+        fetch_models.fetch_inpainter(models)
+        assert hub.calls == []
+
+
 class TestFetchGguf:
     """The GGUF translation checkpoint."""
 
@@ -177,6 +197,12 @@ class TestMain:
         assert fetch_models.main(["gguf", str(tmp_path), "repo/id", "m.gguf"]) == 0
         assert (tmp_path / "m.gguf").exists()
         assert hub.calls == [("download", "repo/id", "m.gguf")]
+
+    def test_inpainter_subcommand(self, hub: FakeHub, tmp_path: Path) -> None:
+        """``inpainter`` writes the AOT weights."""
+        assert fetch_models.main(["inpainter", str(tmp_path)]) == 0
+        assert (tmp_path / "aot-inpainting.safetensors").exists()
+        assert hub.calls == [("download", "mayocream/aot-inpainting", "model.safetensors")]
 
     def test_requires_a_subcommand(self) -> None:
         """No subcommand is a usage error, not a traceback."""

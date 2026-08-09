@@ -13,7 +13,7 @@ import types
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from conftest import (
     FakeHttpClient,
@@ -29,7 +29,15 @@ from mangatl.adapters import require
 from mangatl.adapters.translate_libre import LibreTranslateTranslator
 from mangatl.adapters.translate_llm import HttpChatBackend, LlmTranslator
 from mangatl.adapters.typeset import PillowTypesetter, wrap_text
-from mangatl.adapters.vision import AotInpainter, MangaOcr, YoloBubbleDetector
+from mangatl.adapters.vision import (
+    INPAINT_MAX_SIDE,
+    INPAINT_MIN_SIDE,
+    INPAINT_PAD_MULTIPLE,
+    AotInpainter,
+    MangaOcr,
+    YoloBubbleDetector,
+    _fit_for_inpaint,
+)
 from mangatl.domain.models import Box, GlossaryEntry, Page, RegionKind, Stage, TextRegion
 from mangatl.pipeline import Pipeline
 
@@ -371,49 +379,88 @@ class TestAotInpainter:
         out = tmp_path / "clean.png"
         assert AotInpainter(settings).erase(page_image, [], out) == out
 
-    def test_uses_injected_model(
+    def test_mask_covers_glyphs_not_the_whole_balloon(
         self,
         settings: Settings,
-        page_image: Path,
-        tmp_path: Path,
     ) -> None:
-        """Uses injected model."""
-        seen: list[list[tuple[int, int, int, int]]] = []
+        """The generative mask selects ink, not the region.
 
-        class Model:
-            def inpaint(self, path: str, boxes: list[tuple[int, int, int, int]]) -> Image.Image:
-                """Fake inpaint used by the tests."""
-                del path
-                seen.append(boxes)
-                return Image.new("RGB", (10, 10), "white")
+        Regression: masking the whole balloon asked the network to hallucinate
+        an entire balloon rather than erase lettering, which measured worse
+        than a flat fill. Only dark pixels inside the region may be masked.
+        """
+        page = Image.new("RGB", (60, 60), (255, 255, 255))
+        for x in range(25, 36):
+            for y in range(25, 36):
+                page.putpixel((x, y), (0, 0, 0))
+        region = _region(Box(10, 10, 50, 50))
+        mask = AotInpainter(settings)._mask_image(page, [region], page.size)
+        assert mask.getpixel((30, 30)) == 255
+        # Inside the region but not ink: must be left for the original page.
+        assert mask.getpixel((14, 14)) == 0
 
-        out = tmp_path / "clean.png"
-        AotInpainter(settings, model=Model()).erase(page_image, [_region(Box(1, 1, 5, 5))], out)
-        assert seen == [[(1, 1, 5, 5)]]
-        assert out.exists()
-
-    def test_lazy_torch_load_when_weights_exist(
+    def test_mask_spares_the_balloon_outline(
         self,
         settings: Settings,
-        page_image: Path,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Lazy torch load when weights exist."""
-        settings.inpaint_weights.parent.mkdir(parents=True, exist_ok=True)
-        settings.inpaint_weights.write_bytes(b"weights")
+        """The outline is ink too, and must not be erased with the lettering.
 
-        class Model:
-            def inpaint(self, path: str, boxes: list[tuple[int, int, int, int]]) -> Image.Image:
-                """Fake inpaint used by the tests."""
-                del path, boxes
-                return Image.new("RGB", (8, 8), "white")
+        Regression: masking every dark pixel inside the balloon polygon took
+        the balloon's own border with it, which measured worse than a flat
+        fill. The polygon is inset before the ink is selected.
+        """
+        page = Image.new("RGB", (400, 400), (255, 255, 255))
+        draw = ImageDraw.Draw(page)
+        outline = ((200, 60), (340, 200), (200, 340), (60, 200))
+        draw.polygon(outline, outline=(0, 0, 0), width=6)
+        draw.rectangle((170, 170, 230, 230), fill=(0, 0, 0))
 
-        module = types.ModuleType("torch")
-        module.load = lambda path, weights_only: Model()  # type: ignore[attr-defined]  # noqa: ARG005
-        monkeypatch.setitem(sys.modules, "torch", module)
-        out = tmp_path / "clean.png"
-        assert AotInpainter(settings).erase(page_image, [_region(Box(1, 1, 5, 5))], out) == out
+        region = _region(Box(60, 60, 341, 341), polygon=outline)
+        mask = AotInpainter(settings)._mask_image(page, [region], page.size)
+        # Lettering is masked...
+        assert mask.getpixel((200, 200)) == 255
+        # ...but the balloon's own border is not.
+        assert mask.getpixel((200, 62)) == 0
+
+    def test_mask_falls_back_to_the_box_without_a_polygon(
+        self,
+        settings: Settings,
+    ) -> None:
+        """A region with no outline still masks the ink inside its box."""
+        page = Image.new("RGB", (40, 40), (255, 255, 255))
+        page.putpixel((20, 20), (0, 0, 0))
+        mask = AotInpainter(settings)._mask_image(page, [_region(Box(5, 5, 35, 35))], page.size)
+        assert mask.getpixel((20, 20)) == 255
+
+
+class TestFitForInpaint:
+    """Sizing an image for the generator."""
+
+    def test_shrinks_an_oversized_page(self) -> None:
+        """A page longer than the working size is scaled down."""
+        fitted = _fit_for_inpaint(Image.new("RGB", (2048, 1024)))
+        assert max(fitted.size) == INPAINT_MAX_SIDE
+        assert fitted.size == (1024, 512)
+
+    def test_rounds_down_to_a_multiple_of_eight(self) -> None:
+        """The three stride-2 stages need both sides divisible by 8."""
+        fitted = _fit_for_inpaint(Image.new("RGB", (1001, 667)))
+        assert fitted.size[0] % INPAINT_PAD_MULTIPLE == 0
+        assert fitted.size[1] % INPAINT_PAD_MULTIPLE == 0
+
+    def test_leaves_an_already_valid_size_alone(self) -> None:
+        """No resample when the size already fits: resizing costs sharpness."""
+        image = Image.new("RGB", (640, 320))
+        assert _fit_for_inpaint(image) is image
+
+    def test_scales_a_tiny_crop_up(self) -> None:
+        """Below the minimum the widest dilation exceeds the feature map.
+
+        Regression: a small page raised ``Padding size should be less than the
+        corresponding input dimension`` from torch instead of being erased.
+        """
+        fitted = _fit_for_inpaint(Image.new("RGB", (32, 32)))
+        assert min(fitted.size) >= INPAINT_MIN_SIDE
 
 
 class TestWrapText:

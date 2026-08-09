@@ -35,9 +35,13 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-      - id: pytest
-        name: pytest with the 100% coverage gate
-        entry: python -m pytest
+      # The 100% gate needs BOTH suites: the generative code only runs with the
+      # [ml] extra installed, and the unit suite must keep running without it.
+      # `make cover` runs each, combines them, and applies the gate to the
+      # union -- exactly what the `coverage` CI job does.
+      - id: coverage
+        name: pytest, both suites, combined 100% gate
+        entry: make cover
         language: system
         types: [python]
         pass_filenames: false

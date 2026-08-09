@@ -8,6 +8,7 @@ the installer can re-run freely.
 Usage:
     fetch_models.py ocr
     fetch_models.py detector <models-dir>
+    fetch_models.py inpainter <models-dir>
     fetch_models.py gguf <models-dir> <repo> <filename>
 """
 
@@ -39,6 +40,19 @@ def fetch_ocr() -> None:
     from huggingface_hub import snapshot_download
 
     snapshot_download("kha-white/manga-ocr-base")
+
+
+def fetch_inpainter(models_dir: Path) -> None:
+    """Place the AOT-GAN inpainting weights in ``models_dir``.
+
+    Args:
+        models_dir: Destination directory for ``aot-inpainting.safetensors``.
+    """
+    dst = models_dir / "aot-inpainting.safetensors"
+    if dst.exists():
+        return
+    shutil.copy(_download("mayocream/aot-inpainting", "model.safetensors"), dst)
+    print(f"  -> {dst}")  # noqa: T201
 
 
 def fetch_detector(models_dir: Path) -> None:
@@ -85,6 +99,9 @@ def main(argv: list[str] | None = None) -> int:
     detector = sub.add_parser("detector", help="fetch bubble segmentation weights")
     detector.add_argument("models_dir", type=Path)
 
+    inpainter = sub.add_parser("inpainter", help="fetch AOT-GAN inpainting weights")
+    inpainter.add_argument("models_dir", type=Path)
+
     gguf = sub.add_parser("gguf", help="fetch a GGUF checkpoint")
     gguf.add_argument("models_dir", type=Path)
     gguf.add_argument("repo")
@@ -95,6 +112,8 @@ def main(argv: list[str] | None = None) -> int:
         fetch_ocr()
     elif args.command == "detector":
         fetch_detector(args.models_dir)
+    elif args.command == "inpainter":
+        fetch_inpainter(args.models_dir)
     else:
         fetch_gguf(args.models_dir, args.repo, args.name)
     return 0

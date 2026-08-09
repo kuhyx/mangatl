@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 class HttpChatBackend(ChatBackend):
     """Chat backend that speaks the OpenAI ``/chat/completions`` shape."""
 
-    def __init__(self, settings: Settings, client: Any | None = None) -> None:  # noqa: ANN401
+    def __init__(self, settings: Settings, client: Any | None = None) -> None:
         """Build a backend.
 
         Args:
@@ -35,7 +35,7 @@ class HttpChatBackend(ChatBackend):
         self._settings = settings
         self._client = client
 
-    def _ensure_client(self) -> Any:  # noqa: ANN401
+    def _ensure_client(self) -> Any:
         """Return the HTTP client, creating one on first use."""
         if self._client is None:
             import httpx

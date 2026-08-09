@@ -31,9 +31,11 @@ Two more honest caveats on the coverage figure:
    proves the adapter's own logic — clamping, padding, error paths — but it
    proves nothing about whether the real `ultralytics` API actually looks
    like the fake. A YOLO API change ships a green suite and a broken app.
-   The CI job deliberately does not install the `[ml]` extra, so this gap is
-   permanent by design; an integration job with real weights would be the
-   fix, and it does not exist yet.
+   The main CI job deliberately does not install the `[ml]` extra. That gap is
+   now partly closed: a second `integration` job installs CPU torch and
+   exercises the AOT-GAN generator against the real library, and the 100% gate
+   is applied to the *union* of both runs. `ultralytics` and `manga_ocr` are
+   still faked everywhere, so the hole is narrower, not gone.
 
    **This is no longer hypothetical — it happened on the very first real
    page.** The fake returned plain `float` coordinates; real ultralytics
@@ -102,12 +104,27 @@ real render rather than at the test suite:
    bubble on the page. It now uses the modal colour of the region, since text
    is a minority of a balloon's area.
 
-Note also that the weights branch has **never run**: it does
-`torch.load(...)` then calls `model.inpaint(...)`, but `mayocream/aot-inpainting`
-ships a raw `model.safetensors` state dict with no such method. Installing the
-documented weights today would fail. Wiring a real AOT-GAN generator is
-outstanding work, and given how well the polygon fill now performs on flat
-balloons, it is worth doing only for screentone and gradient pages.
+The weights branch had **never run**: it called `model.inpaint(...)` on what
+`mayocream/aot-inpainting` actually ships, a raw state dict with no such
+method. The generator now exists (`adapters/aot.py`, ported from
+`zyddnys/manga-image-translator`, GPL-3.0) and the branch works. Two things
+that cost real time and are worth knowing:
+
+1. **The activation is not `nn.ReLU`.** It is `relu(x) * 1.714`, the
+   variance-preserving rectifier of a normaliser-free net. Substituting a plain
+   ReLU loads every one of the 168 tensors without complaint, produces
+   correctly-shaped output, and returns a near-constant grey image, because the
+   signal is attenuated once per activation through eight of them. A checkpoint
+   loading cleanly says nothing about whether the forward pass is right.
+2. **Mask the glyphs, not the balloon.** Handing the network the whole balloon
+   region asks it to hallucinate a balloon rather than erase lettering, and it
+   measured *four times worse* than the flat fill. Masking only the ink inside
+   an inset outline is what made it win.
+
+Measured against the untouched source page (mean absolute error, lower is
+better): on screentone AOT scores 3.57 against the flat fill's 4.12; on flat
+balloons 2.59 against 3.52. It is now the default whenever the weights are
+present, and the flat fill remains the no-weights fallback.
 
 **Whole-page translation makes a page all-or-nothing.** If the model returns
 the wrong array length, the entire page fails rather than one line. That is

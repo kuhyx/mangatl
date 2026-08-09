@@ -14,7 +14,7 @@ jobs:
           python-version: "3.12"
 
       # Deliberately does NOT install the [ml] extra. Every adapter imports
-      # torch/ultralytics/manga_ocr lazily, so the full suite must pass with
+      # torch/ultralytics/manga_ocr lazily, so the unit suite must pass with
       # zero ML dependencies present. If that ever stops being true, this job
       # is what tells you.
       - name: Install
@@ -34,8 +34,67 @@ jobs:
       - name: Types
         run: mypy
 
-      - name: Test with the 100% coverage gate
-        run: python -m pytest
+      - name: Unit tests
+        run: COVERAGE_FILE=.coverage.unit python -m pytest --cov-fail-under=0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: .coverage.unit
+          include-hidden-files: true
+
+  # The one job that installs the ML extra. The unit suite above fakes
+  # torch/ultralytics, which is fast but proves nothing about the real APIs --
+  # and twice now a green suite has shipped a broken app for exactly that
+  # reason (a Tensor with no __round__; discarded segmentation masks). This job
+  # runs the AOT-GAN generator against the genuine library.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install with the ML extra (CPU torch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install --extra-index-url https://download.pytorch.org/whl/cpu -e ".[ml,dev]"
+
+      - name: Integration tests against real torch
+        run: |
+          COVERAGE_FILE=.coverage.integration python -m pytest tests/integration \
+            --override-ini="testpaths=tests/integration" \
+            --cov=mangatl --cov-branch --cov-fail-under=0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-integration
+          path: .coverage.integration
+          include-hidden-files: true
+
+  # The 100% gate lives here, not in either job alone: the generative code can
+  # only run with [ml] installed, and the rest must keep running without it.
+  # Neither half is complete on its own, so the gate is applied to the union.
+  coverage:
+    needs: [quality, integration]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install coverage
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+
+      - name: Combined 100% line and branch gate
+        run: |
+          coverage combine .coverage.unit .coverage.integration
+          coverage report --show-missing --fail-under=100
 
   shell:
     runs-on: ubuntu-latest
@@ -44,4 +103,4 @@ jobs:
       - name: Shellcheck
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck scripts/*.sh
+          shellcheck scripts/*.sh run.sh

@@ -78,6 +78,20 @@ ignore = [
 ]
 "src/mangatl/adapters/*" = [
   "PLC0415", # lazy imports are the deliberate design: no heavy dep at import time
+  # Pillow and torch objects cross these signatures. Neither ships usable stubs
+  # in this environment, so `Any` is the honest annotation rather than a dodge.
+  "ANN401",
+]
+"src/mangatl/adapters/aot.py" = [
+  "PLC0415", # as above
+  # Every signature here takes or returns a torch.Tensor, and torch is not a
+  # declared dependency of the type-check environment, so `Any` is the only
+  # available annotation. Typing these as anything narrower would be a lie.
+  "ANN401",
+  # One function defines the whole network so that `torch.nn.Module` is only
+  # subclassed after torch has been imported. Splitting it would mean either a
+  # module-level torch import or passing every base class around by hand.
+  "C901",
 ]
 "src/mangatl/cli.py" = [
   "PLC0415", # uvicorn is imported only in `serve`, so `batch` never pays for it
@@ -147,7 +161,10 @@ ignore_missing_imports = true
 # --------------------------------------------------------------------------
 [tool.pytest.ini_options]
 minversion = "8.0"
+# The integration suite needs the [ml] extra and runs in its own CI job; the
+# default run stays fast and dependency-free.
 testpaths = ["tests"]
+norecursedirs = ["tests/integration"]
 # `scripts/` is not a package; put it on the path so the shipped helper scripts
 # are importable by their tests and counted by coverage like everything else.
 pythonpath = ["scripts"]
@@ -170,7 +187,15 @@ branch = true
 # `scripts/` is held to the same bar as the package: they are shipped code that
 # the installer and the benchmark harness actually run.
 source = ["src/mangatl", "scripts"]
-parallel = false
+# `aot.py` and the generative half of `vision.py` cannot execute without the
+# [ml] extra, which the default job deliberately does not install. Rather than
+# fake torch -- the very pattern that has twice shipped a green suite with a
+# broken app -- they are covered by `tests/integration` against the real
+# library, and the two runs are combined before the 100% gate is applied.
+# See the `full-coverage` step in CI.
+omit = ["src/mangatl/adapters/aot.py"]
+parallel = true
+relative_files = true
 
 [tool.coverage.report]
 show_missing = true

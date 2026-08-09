@@ -46,7 +46,7 @@ class Layout:
         return self.line_height * len(self.lines)
 
 
-def wrap_text(text: str, max_width: int, measure: Any) -> list[str]:  # noqa: ANN401
+def wrap_text(text: str, max_width: int, measure: Any) -> list[str]:
     """Greedily wrap ``text`` to ``max_width`` pixels.
 
     Args:
@@ -90,7 +90,7 @@ class PillowTypesetter:
         self._font_path = font_path
         self._stroke = stroke
 
-    def _font(self, size: int) -> Any:  # noqa: ANN401
+    def _font(self, size: int) -> Any:
         """Load the font at ``size`` pixels."""
         from PIL import ImageFont
 
@@ -118,7 +118,7 @@ class PillowTypesetter:
             size = (low + high) // 2
             font = self._font(size)
 
-            def measure(value: str, font: Any = font) -> float:  # noqa: ANN401
+            def measure(value: str, font: Any = font) -> float:
                 return scratch.textlength(value, font=font)
 
             lines = wrap_text(text, area.width, measure)

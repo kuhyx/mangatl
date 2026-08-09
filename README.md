@@ -93,7 +93,7 @@ orchestration and the whole suite runs with zero ML dependencies installed.
 | Detect | `kitsumed/yolov8m_seg-speech-bubble` | GPL-3.0 | returns masks, not just boxes |
 | OCR | `kha-white/manga-ocr-base` | Apache-2.0 | ~444 MB, vertical + furigana, multi-line in one pass |
 | Translate | Qwen3-14B-Instruct via `llama-server` | Apache-2.0 | whole page + glossary + critique |
-| Inpaint | AOT-GAN | MIT | chosen over LaMa: several `big-lama` mirrors are non-commercial |
+| Inpaint | AOT-GAN (`mayocream/aot-inpainting`) | MIT | real generative inpainting; falls back to a polygon fill with no weights |
 | Typeset | Pillow + Comic Neue | OFL-1.1 | Wild Words and Blambot faces are **not** redistributable |
 
 ## Development
@@ -108,8 +108,19 @@ Quality gates, all enforced in CI:
   are ruff's own documented rule conflicts.
 - `mypy --strict` plus eight extra error codes strict does not imply.
 - `pytest --cov-branch --cov-fail-under=100`. **There is no
-  `pragma: no cover` escape hatch** — `exclude_lines` is overridden to
-  `if TYPE_CHECKING:` only, which is not executable code by definition.
+  `pragma: no cover` escape hatch** — `exclude_lines` holds only
+  `if TYPE_CHECKING:` and `if __name__ == "__main__":`, neither of which is
+  executable code by definition.
+- A separate `integration` job installs CPU torch and runs the AOT-GAN
+  generator against the *real* library, because a fake that is more capable
+  than the real object hides bugs — which is exactly how a Tensor with no
+  `__round__` shipped past a green suite. The 100% gate is applied to the
+  union of both runs, so neither half can quietly drop coverage:
+
+  ```bash
+  pip install -e '.[ml,dev]'
+  pytest tests/integration --override-ini="testpaths=tests/integration"
+  ```
 
 ## Licence
 

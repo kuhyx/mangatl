@@ -142,6 +142,13 @@ fetch_models() {
     log "  bubble detector already present"
   fi
 
+  if [[ ! -f "$MODELS/aot-inpainting.safetensors" ]]; then
+    log "  AOT-GAN inpainting (MIT, ~22 MB)"
+    python "$REPO_DIR/scripts/fetch_models.py" inpainter "$MODELS"
+  else
+    log "  inpainter already present"
+  fi
+
   if [[ ! -f "$MODELS/$LLM_FILE" ]]; then
     log "  translation LLM $LLM_FILE (Apache-2.0, ~10 GB) -- this is the long one"
     python "$REPO_DIR/scripts/fetch_models.py" gguf "$MODELS" "$LLM_REPO" "$LLM_FILE"
@@ -149,11 +156,6 @@ fetch_models() {
     log "  translation LLM already present"
   fi
 
-  # AOT-GAN inpainting is optional. Without it mangatl uses a deterministic
-  # border-colour fill, which is visually perfect inside a white balloon and
-  # never hallucinates artwork. Skipped by default for exactly that reason.
-  log "  inpainting: using the deterministic fill (no weights needed)"
-  log "     set MANGATL_INPAINT_WEIGHTS to an AOT/LaMa checkpoint to upgrade"
 }
 
 # --------------------------------------------------------------------------

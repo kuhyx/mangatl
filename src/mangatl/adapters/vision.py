@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from PIL import ImageChops, ImageFilter
+
 from mangatl.adapters import require
 from mangatl.domain.models import MIN_POLYGON_POINTS, Box, RegionKind, TextRegion
 
@@ -25,9 +27,59 @@ if TYPE_CHECKING:
     from mangatl.domain.models import Page
 
 MIN_REGION_SIDE = 6
+# The AOT-GAN checkpoint's working resolution: trained at up to 1024px on the
+# long side, and its stride-2 stages need both dimensions divisible by 8.
+INPAINT_MAX_SIDE = 1024
+INPAINT_PAD_MULTIPLE = 8
+# The encoder downsamples 4x and the widest AOT branch dilates by 16, so a side
+# shorter than this makes the reflection padding larger than the feature map and
+# torch raises. Small crops are scaled up rather than rejected.
+INPAINT_MIN_SIDE = 176
+# Grow the hole slightly so the network is not asked to reconstruct against a
+# glyph's anti-aliased edge. Must be odd; 5 is about two pixels of slack.
+MASK_DILATE = 5
+# A mask pixel counts as a hole above this; the mask is effectively binary.
+MASK_THRESHOLD = 0.5
+# Pixels darker than this inside a text region are treated as ink. Manga
+# lettering is near-black on a light balloon, so the split is unambiguous.
+INK_LUMINANCE = 128
+# Contract a balloon outline by this before masking its ink, so the outline
+# itself is never erased along with the lettering.
+POLYGON_INSET = 0.93
 
 
-def _dominant_colour(crop: Any) -> tuple[int, int, int]:  # noqa: ANN401
+def _fit_for_inpaint(image: Any) -> Any:
+    """Scale an image to the generator's working resolution.
+
+    The network was trained at up to 1024px on the long side and its three
+    stride-2 stages require both dimensions to be multiples of 8. Oversized
+    pages are scaled down rather than tiled: a seam across a balloon looks far
+    worse than slightly softer texture.
+
+    Args:
+        image: An RGB ``PIL.Image``.
+
+    Returns:
+        A copy sized for the network.
+    """
+    from PIL import Image
+
+    width, height = image.size
+    longest = max(width, height)
+    if longest > INPAINT_MAX_SIDE:
+        ratio = INPAINT_MAX_SIDE / longest
+        width, height = round(width * ratio), round(height * ratio)
+    if min(width, height) < INPAINT_MIN_SIDE:
+        ratio = INPAINT_MIN_SIDE / min(width, height)
+        width, height = round(width * ratio), round(height * ratio)
+    width = max(INPAINT_MIN_SIDE, width - width % INPAINT_PAD_MULTIPLE)
+    height = max(INPAINT_MIN_SIDE, height - height % INPAINT_PAD_MULTIPLE)
+    if (width, height) == image.size:
+        return image
+    return image.resize((width, height), Image.Resampling.BILINEAR)
+
+
+def _dominant_colour(crop: Any) -> tuple[int, int, int]:
     """Return the most common colour in an image crop.
 
     Args:
@@ -72,7 +124,7 @@ class YoloBubbleDetector:
     outline instead of a rectangle.
     """
 
-    def __init__(self, settings: Settings, model: Any | None = None) -> None:  # noqa: ANN401
+    def __init__(self, settings: Settings, model: Any | None = None) -> None:
         """Build the detector.
 
         Args:
@@ -82,7 +134,7 @@ class YoloBubbleDetector:
         self._settings = settings
         self._model = model
 
-    def _ensure_model(self) -> Any:  # noqa: ANN401
+    def _ensure_model(self) -> Any:
         """Load the YOLO checkpoint on first use."""
         if self._model is None:
             yolo = require("ultralytics").YOLO
@@ -159,7 +211,7 @@ class YoloBubbleDetector:
         return regions
 
     @staticmethod
-    def _mask_polygons(result: Any) -> list[Sequence[Sequence[float]]]:  # noqa: ANN401
+    def _mask_polygons(result: Any) -> list[Sequence[Sequence[float]]]:
         """Return one outline per detection, or an empty list if unavailable.
 
         Older checkpoints and pure-detection models expose no ``masks`` at all,
@@ -180,7 +232,7 @@ class MangaOcr:
     genuinely redistributable.
     """
 
-    def __init__(self, settings: Settings, engine: Any | None = None) -> None:  # noqa: ANN401
+    def __init__(self, settings: Settings, engine: Any | None = None) -> None:
         """Build the OCR adapter.
 
         Args:
@@ -190,7 +242,7 @@ class MangaOcr:
         self._settings = settings
         self._engine = engine
 
-    def _ensure_engine(self) -> Any:  # noqa: ANN401
+    def _ensure_engine(self) -> Any:
         """Load the OCR model on first use."""
         if self._engine is None:
             engine = require("manga_ocr").MangaOcr
@@ -228,7 +280,7 @@ class AotInpainter:
     anime-finetuned LaMa checkpoint instead.
     """
 
-    def __init__(self, settings: Settings, model: Any | None = None) -> None:  # noqa: ANN401
+    def __init__(self, settings: Settings, model: Any | None = None) -> None:
         """Build the inpainter.
 
         Args:
@@ -286,13 +338,80 @@ class AotInpainter:
         """
         if self._model is None and not self._settings.inpaint_weights.exists():
             return self._flat_fill(image_path, regions, out_path)
-        model = self._model
-        if model is None:
-            torch = require("torch")
+        if self._model is None:
+            from mangatl.adapters.aot import load_aot_inpainter
 
-            model = torch.load(str(self._settings.inpaint_weights), weights_only=False)
-        cleaned = model.inpaint(
-            str(image_path), [(r.box.x1, r.box.y1, r.box.x2, r.box.y2) for r in regions]
+            self._model = load_aot_inpainter(self._settings.inpaint_weights, self._settings.device)
+        return self._generative_fill(image_path, regions, out_path)
+
+    def _mask_image(self, page: Any, regions: Sequence[TextRegion], size: tuple[int, int]) -> Any:
+        """Build the hole mask: white where text must be removed.
+
+        Only the **glyphs** are masked, not the balloon. The detector's region
+        covers the whole balloon interior, and handing that to the generator
+        asks it to hallucinate an entire balloon rather than erase some
+        lettering -- measurably worse than a flat fill, because the network
+        rebuilds surrounding texture it was never asked to touch.
+
+        So the region is used only to *restrict where we look*, and within it
+        the ink itself is selected by luminance. Manga lettering is near-black
+        on a light balloon, which makes a simple threshold reliable here.
+        """
+        from PIL import Image, ImageDraw
+
+        region_mask = Image.new("L", size, 0)
+        draw = ImageDraw.Draw(region_mask)
+        for region in regions:
+            box = region.box
+            if len(region.polygon) >= MIN_POLYGON_POINTS:
+                # Shrink first: the balloon's own outline is ink too, and
+                # erasing it would cost the page its balloons.
+                centre = ((box.x1 + box.x2) // 2, (box.y1 + box.y2) // 2)
+                draw.polygon(_shrink(region.polygon, centre, POLYGON_INSET), fill=255)
+            else:
+                draw.rectangle((box.x1, box.y1, box.x2 - 1, box.y2 - 1), fill=255)
+        # Ink inside those regions: dark pixels are lettering, everything
+        # lighter is balloon or artwork and must survive untouched.
+        ink = page.convert("L").point(lambda v: 255 if v < INK_LUMINANCE else 0)
+        glyphs = ImageChops.multiply(region_mask, ink)
+        # A few pixels of slack, so the network is not asked to reconstruct
+        # right up against a glyph's anti-aliased edge.
+        return glyphs.filter(ImageFilter.MaxFilter(MASK_DILATE))
+
+    def _generative_fill(
+        self, image_path: Path, regions: Sequence[TextRegion], out_path: Path
+    ) -> Path:
+        """Erase with the AOT-GAN generator and composite the result.
+
+        Only the masked pixels are taken from the network; everything else is
+        the untouched original, so the artwork can never be subtly redrawn.
+        """
+        torch = require("torch")
+        numpy = require("numpy")
+        from PIL import Image
+
+        with Image.open(image_path) as handle:
+            original = handle.convert("RGB")
+        mask = self._mask_image(original, regions, original.size)
+
+        # The checkpoint works at a bounded resolution, on multiples of 8.
+        work = _fit_for_inpaint(original)
+        work_mask = mask.resize(work.size, Image.Resampling.BILINEAR)
+
+        img_t = torch.from_numpy(numpy.array(work, dtype="float32")).permute(2, 0, 1)[None]
+        img_t = img_t / 127.5 - 1.0
+        mask_t = torch.from_numpy(numpy.array(work_mask, dtype="float32"))[None, None] / 255.0
+        mask_t = (mask_t >= MASK_THRESHOLD).float()
+
+        device = self._settings.device
+        img_t, mask_t = img_t.to(device), mask_t.to(device)
+        model: Any = self._model
+        with torch.no_grad():
+            generated = model(img_t * (1 - mask_t), mask_t)
+
+        array = ((generated[0].permute(1, 2, 0).cpu().numpy() + 1.0) * 127.5).clip(0, 255)
+        filled = Image.fromarray(array.astype("uint8")).resize(
+            original.size, Image.Resampling.BILINEAR
         )
-        cleaned.save(out_path)
+        Image.composite(filled, original, mask).save(out_path)
         return out_path
