@@ -17,7 +17,7 @@ churn, not size alone — refactoring pays where code is read and changed often
 
 ## Scope in this repo
 
-- **10 files** currently exceed 250 lines (of 43 eligible files).
+- **10 files** currently exceed 250 lines (of 44 eligible files).
 - **3,939 lines** sit in violation; longest file is **720 lines**.
 
 Exempt (do NOT split these):
@@ -34,16 +34,16 @@ has near-zero payoff and should not be first.
 
 | lines | commits/yr | kind | file |
 |------:|-----------:|:-----|:-----|
-| 293 | 0 | code | `src/mangatl/web/app.py` |
-| 417 | 0 | code | `src/mangatl/adapters/vision.py` |
-| 294 | 0 | code | `src/mangatl/adapters/aot.py` |
-| 259 | 0 | code | `src/mangatl/domain/models.py` |
-| 281 | 0 | code | `scripts/install-arch.sh` |
-| 412 | 0 | code | `tests/test_scripts.py` |
-| 291 | 0 | code | `tests/test_domain.py` |
-| 523 | 0 | code | `tests/test_app.py` |
-| 720 | 0 | code | `tests/test_adapters.py` |
-| 449 | 0 | code | `tests/test_quality.py` |
+| 720 | 2 | code | `tests/test_adapters.py` |
+| 417 | 2 | code | `src/mangatl/adapters/vision.py` |
+| 412 | 2 | code | `tests/test_scripts.py` |
+| 281 | 2 | code | `scripts/install-arch.sh` |
+| 523 | 1 | code | `tests/test_app.py` |
+| 449 | 1 | code | `tests/test_quality.py` |
+| 294 | 1 | code | `src/mangatl/adapters/aot.py` |
+| 293 | 1 | code | `src/mangatl/web/app.py` |
+| 291 | 1 | code | `tests/test_domain.py` |
+| 259 | 1 | code | `src/mangatl/domain/models.py` |
 
 ## How to split
 
