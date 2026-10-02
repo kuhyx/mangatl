@@ -24,6 +24,10 @@ dependencies = [
   "httpx>=0.27,<1.0",
   "pillow>=10.4,<12.0",
   "starlette<1.0",
+  # anyio 4.15 deprecates `anyio.abc.BlockingPortal`, which every starlette 0.x
+  # TestClient (0.52.1 is the last) references at import -- an error here under
+  # filterwarnings. Lift together with the starlette<1.0 bound above.
+  "anyio>=4,<4.15",
   "uvicorn[standard]>=0.32,<1.0",
 ]
 
