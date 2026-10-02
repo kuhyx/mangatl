@@ -226,7 +226,7 @@ Environment=MANGATL_DETECTOR_WEIGHTS=$MODELS/bubble-seg.pt
 Environment=MANGATL_LLM_BASE_URL=http://127.0.0.1:8081/v1
 Environment=MANGATL_LLM_MODEL=qwen3-14b-instruct
 Environment=MANGATL_DEVICE=${MANGATL_DEVICE:-cuda}
-ExecStart=$VENV/bin/mangatl serve --host 127.0.0.1 --port 8000
+ExecStart=$VENV/bin/mangatl serve --host 127.0.0.1 --port 8780
 Restart=on-failure
 RestartSec=5
 
@@ -266,7 +266,7 @@ main() {
   Done.
 
     systemctl --user start mangatl-llm mangatl
-    xdg-open http://127.0.0.1:8000
+    xdg-open http://127.0.0.1:8780
 
   Batch a chapter, carrying context page to page:
 

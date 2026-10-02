@@ -19,6 +19,10 @@ from mangatl.quality.glossary import Glossary
 from mangatl.storage.db import Database
 from mangatl.web.assembly import build_pipeline
 
+# Not 8000: steam-backlog-enforcer-web holds it on this machine, so mangatl
+# could never start beside it. Keep in step with run.sh and install-arch.sh.
+DEFAULT_PORT = 8780
+
 MAX_CARRIED_CONTEXT = 24
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 
@@ -30,7 +34,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     serve = sub.add_parser("serve", help="run the web UI")
     serve.add_argument("--host", default="127.0.0.1")
-    serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--port", type=int, default=DEFAULT_PORT)
 
     batch = sub.add_parser("batch", help="translate a directory of pages in order")
     batch.add_argument("directory", type=Path)

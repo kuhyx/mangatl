@@ -18,7 +18,7 @@ set -euo pipefail
 readonly LLM_UNIT="mangatl-llm.service"
 readonly WEB_UNIT="mangatl.service"
 readonly LLM_HEALTH="http://127.0.0.1:8081/health"
-readonly WEB_URL="http://127.0.0.1:8000"
+readonly WEB_URL="http://127.0.0.1:8780"
 # The 14B model has to be read off disk and pushed into VRAM on a cold start.
 readonly READY_TIMEOUT_S=300
 
