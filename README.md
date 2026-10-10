@@ -42,7 +42,7 @@ VRAM, so the services are installed but **not** enabled at login — you turn
 them on for a translating session and get the card back afterwards.
 
 ```bash
-./run.sh          # start both services and open http://127.0.0.1:8780
+./run.sh          # start both services and open http://127.0.0.1:8781
 ./run.sh stop     # stop both, release the VRAM
 ./run.sh status   # what is running, and how much VRAM it is holding
 ./run.sh logs     # follow the LLM log

@@ -19,9 +19,10 @@ from mangatl.quality.glossary import Glossary
 from mangatl.storage.db import Database
 from mangatl.web.assembly import build_pipeline
 
-# Not 8000: steam-backlog-enforcer-web holds it on this machine, so mangatl
-# could never start beside it. Keep in step with run.sh and install-arch.sh.
-DEFAULT_PORT = 8780
+# Not 8000 (steam-backlog-enforcer-web) and not 8780 (anki-syncserver): both
+# are held on this machine, so mangatl could never start beside them. Keep in
+# step with run.sh, install-arch.sh and control-panel's mangatl.json manifest.
+DEFAULT_PORT = 8781
 
 MAX_CARRIED_CONTEXT = 24
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
