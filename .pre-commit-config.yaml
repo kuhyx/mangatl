@@ -31,7 +31,7 @@ repos:
     hooks:
       - id: mypy
         name: mypy --strict
-        entry: mypy
+        entry: make types
         language: system
         types: [python]
         pass_filenames: false
