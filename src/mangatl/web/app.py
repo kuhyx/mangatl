@@ -46,20 +46,18 @@ INDEX_HTML = """<!doctype html>
  #out{margin-top:1.5rem} .line{padding:.3rem 0;border-bottom:1px solid #222}
  .ja{color:#888;font-size:.9rem}
 </style></head><body>
-<h1>mangatl &mdash; local Japanese &rarr; English manga translation</h1>
-<p>Everything runs on this machine. Nothing leaves it.</p>
 <input type="file" id="file" accept="image/*">
-<button id="go">Translate page</button>
+<button id="go">&#x1F50D;</button>
 <div id="out"></div>
 <script>
 document.getElementById('go').onclick = async () => {
   const f = document.getElementById('file').files[0];
   const out = document.getElementById('out');
-  if (!f) { out.textContent = 'Pick an image first.'; return; }
-  out.textContent = 'Working. A dense page takes a while on the critique pass...';
+  if (!f) { out.textContent = '❌'; return; }
+  out.textContent = '⏳';
   const fd = new FormData(); fd.append('file', f);
   const r = await fetch('/api/pages', {method: 'POST', body: fd});
-  if (!r.ok) { out.textContent = 'Failed: ' + await r.text(); return; }
+  if (!r.ok) { out.textContent = '⚠'; return; }
   const d = await r.json();
   out.innerHTML = '<div class="row"><img src="/api/pages/' + d.id + '/render"></div>' +
     d.regions.map(x => '<div class="line"><div class="ja">' + x.source_text +
