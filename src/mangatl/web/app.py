@@ -40,23 +40,40 @@ INDEX_HTML = """<!doctype html>
 <style>
  body{font-family:system-ui,sans-serif;max-width:52rem;margin:2rem auto;padding:0 1rem;
       background:#111;color:#eee}
- h1{font-size:1.4rem} a{color:#8cf} .row{display:flex;gap:1rem;flex-wrap:wrap}
+ a{color:#8cf} .row{display:flex;gap:1rem;flex-wrap:wrap}
  img{max-width:100%;border:1px solid #333;border-radius:4px}
- button{padding:.6rem 1rem;font-size:1rem;cursor:pointer}
- #out{margin-top:1.5rem} .line{padding:.3rem 0;border-bottom:1px solid #222}
+ button,label{display:inline-block;padding:.6rem 1rem;font-size:1.4rem;cursor:pointer;
+      background:#222;border:1px solid #444;border-radius:4px;vertical-align:middle}
+ #pick{max-height:3rem;vertical-align:middle}
+ #out{margin-top:1.5rem;font-size:2rem} .line{padding:.3rem 0;border-bottom:1px solid #222}
  .ja{color:#888;font-size:.9rem}
+ .busy{animation:pulse 1s ease-in-out infinite alternate}
+ @keyframes pulse{to{opacity:.3}}
 </style></head><body>
-<input type="file" id="file" accept="image/*">
-<button id="go">&#x1F50D;</button>
-<div id="out"></div>
+<label aria-label="Pick a page image">&#x1F4C2;<input type="file" id="file"
+ accept="image/*" hidden></label>
+<img id="pick" alt="" hidden>
+<button id="go" aria-label="Translate page">&#x1F50D;</button>
+<div id="out" aria-live="polite"></div>
 <script>
+const file = document.getElementById('file');
+const pick = document.getElementById('pick');
+// The chosen page's thumbnail replaces the native "No file chosen" text.
+file.onchange = () => {
+  const f = file.files[0];
+  pick.hidden = !f;
+  if (f) pick.src = URL.createObjectURL(f);
+};
 document.getElementById('go').onclick = async () => {
-  const f = document.getElementById('file').files[0];
+  const f = file.files[0];
   const out = document.getElementById('out');
+  out.className = '';
   if (!f) { out.textContent = '❌'; return; }
+  out.className = 'busy';
   out.textContent = '⏳';
   const fd = new FormData(); fd.append('file', f);
   const r = await fetch('/api/pages', {method: 'POST', body: fd});
+  out.className = '';
   if (!r.ok) { out.textContent = '⚠'; return; }
   const d = await r.json();
   out.innerHTML = '<div class="row"><img src="/api/pages/' + d.id + '/render"></div>' +
