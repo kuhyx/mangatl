@@ -21,8 +21,10 @@ lint:
 types:
 	$(PY) -m mypy
 
+# The unit suite alone cannot reach the 100% bar (the generative path needs
+# [ml]); `cover` applies it to the union. Same as the CLAUDE.md test command.
 test:
-	$(PY) -m pytest
+	$(PY) -m pytest --no-cov
 
 integration:  ## Needs the [ml] extra: exercises the real torch network
 	$(PY) -m pytest tests/integration --override-ini="testpaths=tests/integration"
