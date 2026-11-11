@@ -14,8 +14,8 @@ DEPLOY = Path(__file__).resolve().parent.parent / "scripts" / "deploy.sh"
 
 def _run(env: dict[str, str]) -> subprocess.CompletedProcess[str]:
     """Run the deploy script with overridden paths, never the live ones."""
-    return subprocess.run(
-        ["bash", str(DEPLOY)],
+    return subprocess.run(  # noqa: S603 -- fixed repo script, test-owned args
+        ["/usr/bin/bash", str(DEPLOY)],
         env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", **env},
         capture_output=True,
         text=True,
