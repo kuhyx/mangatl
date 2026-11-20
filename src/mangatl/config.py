@@ -54,8 +54,8 @@ class Settings(BaseSettings):
     inpaint_weights: Path = Field(default=DEFAULT_ROOT / "models" / "aot-inpainting.safetensors")
     """AOT-GAN weights. MIT-licensed conversion, unlike some LaMa checkpoints."""
 
-    device: str = Field(default="cuda")
-    """Torch device string. Set to ``cpu`` to run without a GPU."""
+    device: str = Field(default="cpu")
+    """Torch device string. ``cpu``: the app ships CPU-only torch (no CUDA wheels)."""
 
     max_upload_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
     """Reject oversized uploads before touching disk."""

@@ -61,6 +61,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install --extra-index-url https://download.pytorch.org/whl/cpu -e ".[ml,dev]"
 
+      - name: No proprietary CUDA wheels in the resolved set
+        run: bash scripts/check_cpu_torch.sh python
+
       - name: Integration tests against real torch
         run: |
           COVERAGE_FILE=.coverage.integration python -m pytest tests/integration \

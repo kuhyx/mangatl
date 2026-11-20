@@ -34,6 +34,8 @@ dependencies = [
 [project.optional-dependencies]
 # Heavy ML extras. Deliberately NOT required to run the tests: every adapter
 # imports these lazily inside the call site, so the test suite fakes them.
+# torch/torchvision must be the CPU build (PyPI's Linux torch pulls NVIDIA's
+# proprietary CUDA wheels): install-arch.sh installs them from the CPU index first.
 ml = [
   "torch>=2.4",
   "manga-ocr>=0.1.14",
@@ -44,7 +46,9 @@ ml = [
 dev = [
   "ruff==0.12.12",
   "mypy==1.14.1",
-  "pytest>=8.3",
+  # pytest 9.2 deprecates `_pytest.python.CallSpec2`, which the anyio<4.15 pytest
+  # plugin imports: an error under filterwarnings. Lift with the anyio bound.
+  "pytest>=8.3,<9.2",
   "pytest-cov>=5.0",
   "pytest-asyncio>=0.24",
 ]

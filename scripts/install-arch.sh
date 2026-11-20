@@ -16,6 +16,8 @@ readonly MODELS="$PREFIX/models"
 readonly FONTS="$PREFIX/fonts"
 readonly VENV="$PREFIX/venv"
 readonly LLAMA_DIR="$PREFIX/llama.cpp"
+# CPU-only torch: PyPI's Linux torch pulls NVIDIA's proprietary CUDA wheels.
+readonly TORCH_INDEX="https://download.pytorch.org/whl/cpu"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_DIR
 
@@ -111,10 +113,13 @@ setup_venv() {
   source "$VENV/bin/activate"
   pip install --quiet --upgrade pip wheel
 
-  log "Installing mangatl and its ML extras (this pulls torch, expect ~4 GB)"
-  # Braces are load-bearing: "$REPO_DIR[ml]" parses as an array subscript and
-  # expands to the empty string, silently installing nothing.
+  log "Installing CPU torch, then mangatl and its ML extras"
+  # torch first, from the CPU index only, so `.[ml]` finds it satisfied. Braces
+  # are load-bearing: "$REPO_DIR[ml]" would expand to the empty string.
+  pip install --quiet --index-url "$TORCH_INDEX" torch torchvision
   pip install --quiet -e "${REPO_DIR}[ml]"
+  bash "$REPO_DIR/scripts/check_cpu_torch.sh" "$VENV/bin/python" \
+    || die "CUDA wheels in $VENV (an old CUDA venv?): move it aside, re-run"
   pip install --quiet huggingface_hub
 }
 
@@ -225,7 +230,7 @@ Environment=MANGATL_FONT_DIR=$FONTS
 Environment=MANGATL_DETECTOR_WEIGHTS=$MODELS/bubble-seg.pt
 Environment=MANGATL_LLM_BASE_URL=http://127.0.0.1:8081/v1
 Environment=MANGATL_LLM_MODEL=qwen3-14b-instruct
-Environment=MANGATL_DEVICE=${MANGATL_DEVICE:-cuda}
+Environment=MANGATL_DEVICE=${MANGATL_DEVICE:-cpu}
 ExecStart=$VENV/bin/mangatl serve --host 127.0.0.1 --port 8781
 Restart=on-failure
 RestartSec=5
