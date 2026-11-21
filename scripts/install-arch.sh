@@ -67,7 +67,7 @@ install_packages() {
   local pkgs=(
     base-devel git cmake ninja
     python python-pip python-virtualenv
-    nvidia-utils cuda cudnn
+    nvidia-utils vulkan-icd-loader vulkan-headers shaderc
     libjpeg-turbo libpng freetype2
     curl jq
   )
@@ -175,16 +175,19 @@ fetch_fonts() {
 # 5. llama.cpp server
 # --------------------------------------------------------------------------
 build_llama() {
-  log "Building llama.cpp with CUDA"
-  if [[ -x "$LLAMA_DIR/build/bin/llama-server" ]]; then
+  # Vulkan, not CUDA: the CUDA toolkit is proprietary and not installed. The
+  # check also catches a stale CUDA build left over from an older install.
+  log "Building llama.cpp with Vulkan"
+  if bash "$REPO_DIR/scripts/check_llama_libs.sh" "$LLAMA_DIR/build/bin/llama-server" 2>/dev/null; then
     log "  already built"
     return
   fi
   [[ -d "$LLAMA_DIR" ]] || git clone --depth 1 https://github.com/ggml-org/llama.cpp "$LLAMA_DIR"
   cmake -S "$LLAMA_DIR" -B "$LLAMA_DIR/build" -G Ninja \
-    -DGGML_CUDA=ON -DCMAKE_BUILD_TYPE=Release
+    -DGGML_CUDA=OFF -DGGML_VULKAN=ON -DCMAKE_BUILD_TYPE=Release
   cmake --build "$LLAMA_DIR/build" --config Release -j"$(nproc)"
-  [[ -x "$LLAMA_DIR/build/bin/llama-server" ]] || die "llama-server did not build"
+  bash "$REPO_DIR/scripts/check_llama_libs.sh" "$LLAMA_DIR/build/bin/llama-server" \
+    || die "llama-server did not build"
 }
 
 # --------------------------------------------------------------------------
@@ -204,11 +207,13 @@ After=network.target
 Type=simple
 # -c 8192 gives the model room for a dense page plus prior-page context.
 # --n-gpu-layers 999 offloads everything; a 3090 has the VRAM for it.
+# --device Vulkan0 pins the discrete GPU: Vulkan also lists the iGPU, and
+# llama.cpp would split the layers across both.
 ExecStart=$LLAMA_DIR/build/bin/llama-server \\
   --model $MODELS/$LLM_FILE \\
   --alias qwen3-14b-instruct \\
   --host 127.0.0.1 --port 8081 \\
-  --ctx-size 8192 --n-gpu-layers 999 \\
+  --ctx-size 8192 --n-gpu-layers 999 --device Vulkan0 \\
   --flash-attn on --parallel 1
 Restart=on-failure
 RestartSec=5

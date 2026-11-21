@@ -17,6 +17,7 @@ set -euo pipefail
 
 readonly SRC="${MANGATL_SRC:-$HOME/src/mangatl}"
 readonly VENV="${MANGATL_VENV:-$HOME/.local/share/mangatl/venv}"
+readonly LLAMA_SERVER="${MANGATL_LLAMA_SERVER:-$HOME/.local/share/mangatl/llama.cpp/build/bin/llama-server}"
 readonly LLM_UNIT="mangatl-llm.service"
 readonly WEB_UNIT="mangatl.service"
 readonly LLM_HEALTH="http://127.0.0.1:8081/health"
@@ -70,6 +71,10 @@ wait_healthy() {
 main() {
   preflight
   pull
+  # After the pull, so the check script exists in the checkout. A binary that
+  # cannot load its GPU runtime would die with exit 127 on start.
+  bash "$SRC/scripts/check_llama_libs.sh" "$LLAMA_SERVER" \
+    || die "llama-server is not runnable -- rerun scripts/install-arch.sh"
   systemctl --user daemon-reload
   # Start, not restart, the LLM: its binary and model do not change with the
   # repo, and a restart would reload 10 GB for nothing.
