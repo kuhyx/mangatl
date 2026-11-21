@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import secrets
 from dataclasses import asdict
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, HTTPException, UploadFile
@@ -22,8 +23,6 @@ from mangatl.storage.db import Database
 from mangatl.web.assembly import build_pipeline
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from mangatl.pipeline import Pipeline
 
 HTTP_CREATED = 201
@@ -49,7 +48,7 @@ INDEX_HTML = """<!doctype html>
  .ja{color:#888;font-size:.9rem}
  .busy{animation:pulse 1s ease-in-out infinite alternate}
  @keyframes pulse{to{opacity:.3}}
-</style></head><body>
+</style><script type="module" src="/vendor/kuhy-credit/kuhy-credit.js"></script></head><body>
 <label aria-label="Pick a page image">&#x1F4C2;<input type="file" id="file"
  accept="image/*" hidden></label>
 <img id="pick" alt="" hidden>
@@ -80,7 +79,12 @@ document.getElementById('go').onclick = async () => {
     d.regions.map(x => '<div class="line"><div class="ja">' + x.source_text +
     '</div><div>' + x.target_text + '</div></div>').join('');
 };
-</script></body></html>
+</script>
+<footer>
+  <kuhy-credit placement="above" align="end"
+    style="--kuhy-credit-size:32px"></kuhy-credit>
+</footer>
+</body></html>
 """
 
 
@@ -117,6 +121,16 @@ def create_app(
     async def index() -> str:
         """Serve the single-page UI."""
         return INDEX_HTML
+
+    vendor_dir = Path(__file__).parent / "vendor" / "kuhy-credit"
+    vendored = frozenset({"kuhy-credit.js", "credit-data.js"})
+
+    @app.get("/vendor/kuhy-credit/{name}")
+    async def kuhy_credit_asset(name: str) -> FileResponse:
+        """Serve the vendored kuhy credit web component (two files only)."""
+        if name not in vendored:
+            raise HTTPException(status_code=HTTP_NOT_FOUND)
+        return FileResponse(vendor_dir / name, media_type="text/javascript")
 
     @app.get("/api/health")
     async def health() -> dict[str, Any]:
@@ -282,7 +296,7 @@ def _image_size(path: Path) -> tuple[int, int] | None:
     try:
         with Image.open(path) as img:
             return (img.width, img.height)
-    except (UnidentifiedImageError, OSError):
+    except UnidentifiedImageError, OSError:
         return None
 
 

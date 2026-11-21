@@ -77,7 +77,7 @@ def back_translate(text: str, settings: Settings) -> str:
     )
     try:
         return parse_lines_response(backend.chat("You are a translator.", prompt), 1)[0]
-    except (RuntimeError, TypeError, ValueError):
+    except RuntimeError, TypeError, ValueError:
         return ""
 
 

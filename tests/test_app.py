@@ -417,6 +417,14 @@ class TestWebApp:
         assert response.status_code == 200
         assert "mangatl" in response.text
 
+    def test_kuhy_credit(self, client: TestClient) -> None:
+        """The index loads the shared credit; only the two vendored files are served."""
+        assert "<kuhy-credit" in client.get("/").text
+        response = client.get("/vendor/kuhy-credit/kuhy-credit.js")
+        assert response.status_code == 200
+        assert "customElements" in response.text
+        assert client.get("/vendor/kuhy-credit/app.py").status_code == 404
+
     def test_health(self, client: TestClient, settings: Settings) -> None:
         """Health."""
         body = client.get("/api/health").json()
