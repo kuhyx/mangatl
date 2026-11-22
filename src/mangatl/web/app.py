@@ -49,10 +49,10 @@ INDEX_HTML = """<!doctype html>
  .busy{animation:pulse 1s ease-in-out infinite alternate}
  @keyframes pulse{to{opacity:.3}}
 </style><script type="module" src="/vendor/kuhy-credit/kuhy-credit.js"></script></head><body>
-<label aria-label="Pick a page image">&#x1F4C2;<input type="file" id="file"
+<label aria-label="Pick a page image" title="Open">&#x1F4C2;<input type="file" id="file"
  accept="image/*" hidden></label>
 <img id="pick" alt="" hidden>
-<button id="go" aria-label="Translate page">&#x1F50D;</button>
+<button id="go" aria-label="Translate page" title="Translate">&#x1F50D;</button>
 <div id="out" aria-live="polite"></div>
 <script>
 const file = document.getElementById('file');

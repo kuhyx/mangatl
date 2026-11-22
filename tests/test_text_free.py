@@ -70,6 +70,14 @@ def test_script_paints_no_words() -> None:
     assert [w for lit in literals for w in WORD.findall(lit)] == []
 
 
+def test_controls_have_one_word_hover_titles() -> None:
+    """Each icon-only control names its icon in ONE hover word (textgate exception)."""
+    visible = [a for _, a in _parse().controls if "hidden" not in a]
+    titles = [a.get("title") or "" for a in visible]
+    assert sorted(titles) == ["Open", "Translate"]
+    assert all(re.fullmatch(r"[A-Za-z-]{1,20}", t) for t in titles)
+
+
 def test_controls_are_spoken_not_painted() -> None:
     """Every icon-only control keeps its meaning as a spoken label.
 
