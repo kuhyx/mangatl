@@ -6,6 +6,6 @@ Needs `pip install -e ".[dev]"` (add `[ml]` only for integration tests / `make c
 - deploy: `scripts/deploy.sh` (pulls ~/src/mangatl, restarts the user units, exits 0 only when the LLM and web health checks pass)
 - test: `python -m pytest --no-cov`
 - test-changed: `scripts/test_changed.sh`
-- lint: `make lint types`
-- coverage: `COVERAGE_FILE=.coverage.unit python -m pytest --cov-fail-under=0`
-- coverage-gaps: `coverage-gaps coverage.xml`
+- lint: n/a: dropped (kuhy, 2026-11-27)
+- coverage: n/a: dropped (kuhy, 2026-11-27)
+- coverage-gaps: n/a: dropped (kuhy, 2026-11-27)

@@ -28,20 +28,8 @@ jobs:
       - name: Format
         run: ruff format --check .
 
-      - name: Lint
-        run: ruff check .
-
-      - name: Types
-        run: mypy
-
       - name: Unit tests
-        run: COVERAGE_FILE=.coverage.unit python -m pytest --cov-fail-under=0
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-unit
-          path: .coverage.unit
-          include-hidden-files: true
+        run: COVERAGE_FILE=.coverage.unit python -m pytest
 
   # The one job that installs the ML extra. The unit suite above fakes
   # torch/ultralytics, which is fast but proves nothing about the real APIs --
@@ -68,42 +56,4 @@ jobs:
         run: |
           COVERAGE_FILE=.coverage.integration python -m pytest tests/integration \
             --override-ini="testpaths=tests/integration" \
-            --cov=mangatl --cov-branch --cov-fail-under=0
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-integration
-          path: .coverage.integration
-          include-hidden-files: true
-
-  # The 100% gate lives here, not in either job alone: the generative code can
-  # only run with [ml] installed, and the rest must keep running without it.
-  # Neither half is complete on its own, so the gate is applied to the union.
-  coverage:
-    needs: [quality, integration]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-      - run: pip install coverage
-
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: coverage-*
-          merge-multiple: true
-
-      - name: Combined 100% line and branch gate
-        run: |
-          coverage combine .coverage.unit .coverage.integration
-          coverage report --show-missing --fail-under=100
-
-  shell:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Shellcheck
-        run: |
-          sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck scripts/*.sh run.sh

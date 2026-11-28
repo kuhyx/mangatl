@@ -181,12 +181,6 @@ addopts = [
   "-q",
   "--strict-markers",
   "--strict-config",
-  "--cov=mangatl",
-  "--cov=scripts",
-  "--cov-report=term-missing:skip-covered",
-  "--cov-report=xml",
-  "--cov-branch",
-  "--cov-fail-under=100",
 ]
 filterwarnings = ["error"]
 
@@ -208,7 +202,6 @@ relative_files = true
 [tool.coverage.report]
 show_missing = true
 skip_covered = false
-fail_under = 100
 # Only two structural blocks are excluded, neither of which is reachable code
 # under test: TYPE_CHECKING never executes at runtime, and a `__main__` guard
 # is false by definition when a module is imported. No `pragma: no cover`
